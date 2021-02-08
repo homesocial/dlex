@@ -36,11 +36,13 @@ defmodule Dlex.Node do
 
   Dgraph types:
 
+      * `:boolean`
       * `:integer`
       * `:float`
       * `:string`
       * `:geo`
       * `:datetime`
+      * `:password`
       * `:uid`
       * `:auto` - special type, which can be used for `depends_on`
 
@@ -176,7 +178,7 @@ defmodule Dlex.Node do
     for %Dlex.Field{name: name, type: type} <- fields, into: %{}, do: {name, ecto_type(type)}
   end
 
-  defp ecto_type(:datetime), do: :utc_datetime
+  defp ecto_type(:password), do: :string
   defp ecto_type(type), do: type
 
   defmacro field(name, type, opts \\ []) do
@@ -234,12 +236,14 @@ defmodule Dlex.Node do
   end
 
   @types_mapping [
-    integer: "int",
+    uid: "[uid]",
+    boolean: "bool",
     float: "float",
-    string: "string",
     geo: "geo",
-    datetime: "datetime",
-    uid: "[uid]"
+    integer: "int",
+    password: "string",
+    string: "string",
+    utc_datetime: "datetime"
   ]
 
   for {type, dgraph_type} <- @types_mapping do

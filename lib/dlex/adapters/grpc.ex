@@ -11,19 +11,27 @@ defmodule Dlex.Adapters.GRPC do
   @impl true
   def connect(host, port, opts \\ []) do
     case gen_stub_options(opts) do
-      {:ok, stub_opts} -> Stub.connect("#{host}:#{port}", stub_opts)
-      {:error, error} -> {:error, error}
+      {:ok, stub_opts} ->
+        Stub.connect("#{host}:#{port}", stub_opts)
+
+      {:error, error} ->
+        {:error, error}
     end
   end
 
   defp gen_stub_options(opts) do
     adapter_opts = %{http2_opts: %{keepalive: opts[:keepalive]}}
-    stub_opts = [adapter_opts: adapter_opts]
+    stub_opts = [adapter_opts: adapter_opts, headers: opts[:headers]]
 
     case gen_ssl_config(opts) do
-      {:ok, nil} -> {:ok, stub_opts}
-      {:ok, ssl_config} -> Keyword.put(stub_opts, :cred, GRPC.Credential.new(ssl: ssl_config))
-      {:error, error} -> {:error, error}
+      {:ok, nil} ->
+        {:ok, stub_opts}
+
+      {:ok, ssl_config} ->
+        {:ok, Keyword.put(stub_opts, :cred, GRPC.Credential.new(ssl: ssl_config))}
+
+      {:error, error} ->
+        {:error, error}
     end
   end
 

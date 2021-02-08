@@ -65,6 +65,7 @@ defmodule Dlex do
   @spec start_link(Keyword.t()) :: {:ok, pid} | {:error, Dlex.Error.t() | term}
   def start_link(opts \\ []) do
     opts = default_opts(opts)
+
     DBConnection.start_link(Dlex.Protocol, opts)
   end
 

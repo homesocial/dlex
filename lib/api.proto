@@ -52,13 +52,32 @@ message Request {
 
 	repeated Mutation mutations = 12;
 	bool commit_now = 13;
+	enum RespFormat {
+		JSON = 0;
+		RDF = 1;
+	}
+	RespFormat resp_format = 14;
+}
+
+message Uids {
+	repeated string uids = 1;
+}
+
+message ListOfString {
+    repeated string value = 1;
 }
 
 message Response {
 	bytes json = 1;
 	TxnContext txn = 2;
 	Latency latency = 3;
+	// Metrics contains all metrics related to the query.
+	Metrics metrics = 4;
+	// uids contains a mapping of blank_node => uid for the node. It only returns uids
+	// that were created as part of a mutation.
 	map<string, string> uids = 12;
+	bytes rdf = 13;
+	map<string, ListOfString> hdrs = 14;
 }
 
 message Mutation {
@@ -93,6 +112,9 @@ message Operation {
 	// If drop_op is ATTR or TYPE, drop_value holds the name of the predicate or
 	// type to delete.
 	string drop_value = 5;
+
+	// run indexes in background.
+	bool run_in_background = 6;
 }
 
 // Worker services.
@@ -119,6 +141,12 @@ message Latency {
 	uint64 processing_ns = 2;
 	uint64 encoding_ns = 3;
 	uint64 assign_timestamp_ns = 4;
+	uint64 total_ns = 5;
+}
+
+message Metrics {
+	// num_uids is the map of number of uids processed by each attribute.
+	map<string, uint64> num_uids = 1;
 }
 
 message NQuad {

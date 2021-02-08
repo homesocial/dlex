@@ -1,24 +1,44 @@
 alias Dlex.Api
 
+defmodule Api.Request.RespFormat do
+  @moduledoc false
+  use Protobuf, enum: true, syntax: :proto3
+  @type t :: integer | :JSON | :RDF
+
+  field :JSON, 0
+
+  field :RDF, 1
+end
+
 defmodule Api.Operation.DropOp do
   @moduledoc false
   use Protobuf, enum: true, syntax: :proto3
+  @type t :: integer | :NONE | :ALL | :DATA | :ATTR | :TYPE
 
   field :NONE, 0
+
   field :ALL, 1
+
   field :DATA, 2
+
   field :ATTR, 3
+
   field :TYPE, 4
 end
 
 defmodule Api.Facet.ValType do
   @moduledoc false
   use Protobuf, enum: true, syntax: :proto3
+  @type t :: integer | :STRING | :INT | :FLOAT | :BOOL | :DATETIME
 
   field :STRING, 0
+
   field :INT, 1
+
   field :FLOAT, 2
+
   field :BOOL, 3
+
   field :DATETIME, 4
 end
 
@@ -30,6 +50,7 @@ defmodule Api.Request.VarsEntry do
           key: String.t(),
           value: String.t()
         }
+
   defstruct [:key, :value]
 
   field :key, 1, type: :string
@@ -47,9 +68,20 @@ defmodule Api.Request do
           read_only: boolean,
           best_effort: boolean,
           mutations: [Api.Mutation.t()],
-          commit_now: boolean
+          commit_now: boolean,
+          resp_format: Api.Request.RespFormat.t()
         }
-  defstruct [:start_ts, :query, :vars, :read_only, :best_effort, :mutations, :commit_now]
+
+  defstruct [
+    :start_ts,
+    :query,
+    :vars,
+    :read_only,
+    :best_effort,
+    :mutations,
+    :commit_now,
+    :resp_format
+  ]
 
   field :start_ts, 1, type: :uint64
   field :query, 4, type: :string
@@ -58,6 +90,33 @@ defmodule Api.Request do
   field :best_effort, 7, type: :bool
   field :mutations, 12, repeated: true, type: Api.Mutation
   field :commit_now, 13, type: :bool
+  field :resp_format, 14, type: Api.Request.RespFormat, enum: true
+end
+
+defmodule Api.Uids do
+  @moduledoc false
+  use Protobuf, syntax: :proto3
+
+  @type t :: %__MODULE__{
+          uids: [String.t()]
+        }
+
+  defstruct [:uids]
+
+  field :uids, 1, repeated: true, type: :string
+end
+
+defmodule Api.ListOfString do
+  @moduledoc false
+  use Protobuf, syntax: :proto3
+
+  @type t :: %__MODULE__{
+          value: [String.t()]
+        }
+
+  defstruct [:value]
+
+  field :value, 1, repeated: true, type: :string
 end
 
 defmodule Api.Response.UidsEntry do
@@ -68,10 +127,26 @@ defmodule Api.Response.UidsEntry do
           key: String.t(),
           value: String.t()
         }
+
   defstruct [:key, :value]
 
   field :key, 1, type: :string
   field :value, 2, type: :string
+end
+
+defmodule Api.Response.HdrsEntry do
+  @moduledoc false
+  use Protobuf, map: true, syntax: :proto3
+
+  @type t :: %__MODULE__{
+          key: String.t(),
+          value: Api.ListOfString.t() | nil
+        }
+
+  defstruct [:key, :value]
+
+  field :key, 1, type: :string
+  field :value, 2, type: Api.ListOfString
 end
 
 defmodule Api.Response do
@@ -82,14 +157,21 @@ defmodule Api.Response do
           json: binary,
           txn: Api.TxnContext.t() | nil,
           latency: Api.Latency.t() | nil,
-          uids: %{String.t() => String.t()}
+          metrics: Api.Metrics.t() | nil,
+          uids: %{String.t() => String.t()},
+          rdf: binary,
+          hdrs: %{String.t() => Api.ListOfString.t() | nil}
         }
-  defstruct [:json, :txn, :latency, :uids]
+
+  defstruct [:json, :txn, :latency, :metrics, :uids, :rdf, :hdrs]
 
   field :json, 1, type: :bytes
   field :txn, 2, type: Api.TxnContext
   field :latency, 3, type: Api.Latency
+  field :metrics, 4, type: Api.Metrics
   field :uids, 12, repeated: true, type: Api.Response.UidsEntry, map: true
+  field :rdf, 13, type: :bytes
+  field :hdrs, 14, repeated: true, type: Api.Response.HdrsEntry, map: true
 end
 
 defmodule Api.Mutation do
@@ -106,6 +188,7 @@ defmodule Api.Mutation do
           cond: String.t(),
           commit_now: boolean
         }
+
   defstruct [:set_json, :delete_json, :set_nquads, :del_nquads, :set, :del, :cond, :commit_now]
 
   field :set_json, 1, type: :bytes
@@ -126,16 +209,19 @@ defmodule Api.Operation do
           schema: String.t(),
           drop_attr: String.t(),
           drop_all: boolean,
-          drop_op: atom | integer,
-          drop_value: String.t()
+          drop_op: Api.Operation.DropOp.t(),
+          drop_value: String.t(),
+          run_in_background: boolean
         }
-  defstruct [:schema, :drop_attr, :drop_all, :drop_op, :drop_value]
+
+  defstruct [:schema, :drop_attr, :drop_all, :drop_op, :drop_value, :run_in_background]
 
   field :schema, 1, type: :string
   field :drop_attr, 2, type: :string
   field :drop_all, 3, type: :bool
   field :drop_op, 4, type: Api.Operation.DropOp, enum: true
   field :drop_value, 5, type: :string
+  field :run_in_background, 6, type: :bool
 end
 
 defmodule Api.Payload do
@@ -145,6 +231,7 @@ defmodule Api.Payload do
   @type t :: %__MODULE__{
           Data: binary
         }
+
   defstruct [:Data]
 
   field :Data, 1, type: :bytes
@@ -161,6 +248,7 @@ defmodule Api.TxnContext do
           keys: [String.t()],
           preds: [String.t()]
         }
+
   defstruct [:start_ts, :commit_ts, :aborted, :keys, :preds]
 
   field :start_ts, 1, type: :uint64
@@ -173,8 +261,8 @@ end
 defmodule Api.Check do
   @moduledoc false
   use Protobuf, syntax: :proto3
-
   @type t :: %__MODULE__{}
+
   defstruct []
 end
 
@@ -185,6 +273,7 @@ defmodule Api.Version do
   @type t :: %__MODULE__{
           tag: String.t()
         }
+
   defstruct [:tag]
 
   field :tag, 1, type: :string
@@ -198,14 +287,45 @@ defmodule Api.Latency do
           parsing_ns: non_neg_integer,
           processing_ns: non_neg_integer,
           encoding_ns: non_neg_integer,
-          assign_timestamp_ns: non_neg_integer
+          assign_timestamp_ns: non_neg_integer,
+          total_ns: non_neg_integer
         }
-  defstruct [:parsing_ns, :processing_ns, :encoding_ns, :assign_timestamp_ns]
+
+  defstruct [:parsing_ns, :processing_ns, :encoding_ns, :assign_timestamp_ns, :total_ns]
 
   field :parsing_ns, 1, type: :uint64
   field :processing_ns, 2, type: :uint64
   field :encoding_ns, 3, type: :uint64
   field :assign_timestamp_ns, 4, type: :uint64
+  field :total_ns, 5, type: :uint64
+end
+
+defmodule Api.Metrics.NumUidsEntry do
+  @moduledoc false
+  use Protobuf, map: true, syntax: :proto3
+
+  @type t :: %__MODULE__{
+          key: String.t(),
+          value: non_neg_integer
+        }
+
+  defstruct [:key, :value]
+
+  field :key, 1, type: :string
+  field :value, 2, type: :uint64
+end
+
+defmodule Api.Metrics do
+  @moduledoc false
+  use Protobuf, syntax: :proto3
+
+  @type t :: %__MODULE__{
+          num_uids: %{String.t() => non_neg_integer}
+        }
+
+  defstruct [:num_uids]
+
+  field :num_uids, 1, repeated: true, type: Api.Metrics.NumUidsEntry, map: true
 end
 
 defmodule Api.NQuad do
@@ -221,6 +341,7 @@ defmodule Api.NQuad do
           lang: String.t(),
           facets: [Api.Facet.t()]
         }
+
   defstruct [:subject, :predicate, :object_id, :object_value, :label, :lang, :facets]
 
   field :subject, 1, type: :string
@@ -239,9 +360,10 @@ defmodule Api.Value do
   @type t :: %__MODULE__{
           val: {atom, any}
         }
+
   defstruct [:val]
 
-  oneof(:val, 0)
+  oneof :val, 0
   field :default_val, 1, type: :string, oneof: 0
   field :bytes_val, 2, type: :bytes, oneof: 0
   field :int_val, 3, type: :int64, oneof: 0
@@ -262,10 +384,11 @@ defmodule Api.Facet do
   @type t :: %__MODULE__{
           key: String.t(),
           value: binary,
-          val_type: atom | integer,
+          val_type: Api.Facet.ValType.t(),
           tokens: [String.t()],
           alias: String.t()
         }
+
   defstruct [:key, :value, :val_type, :tokens, :alias]
 
   field :key, 1, type: :string
@@ -284,6 +407,7 @@ defmodule Api.LoginRequest do
           password: String.t(),
           refresh_token: String.t()
         }
+
   defstruct [:userid, :password, :refresh_token]
 
   field :userid, 1, type: :string
@@ -299,6 +423,7 @@ defmodule Api.Jwt do
           access_jwt: String.t(),
           refresh_jwt: String.t()
         }
+
   defstruct [:access_jwt, :refresh_jwt]
 
   field :access_jwt, 1, type: :string
@@ -309,11 +434,15 @@ defmodule Api.Dgraph.Service do
   @moduledoc false
   use GRPC.Service, name: "api.Dgraph"
 
-  rpc(:Login, Api.LoginRequest, Api.Response)
-  rpc(:Query, Api.Request, Api.Response)
-  rpc(:Alter, Api.Operation, Api.Payload)
-  rpc(:CommitOrAbort, Api.TxnContext, Api.TxnContext)
-  rpc(:CheckVersion, Api.Check, Api.Version)
+  rpc :Login, Api.LoginRequest, Api.Response
+
+  rpc :Query, Api.Request, Api.Response
+
+  rpc :Alter, Api.Operation, Api.Payload
+
+  rpc :CommitOrAbort, Api.TxnContext, Api.TxnContext
+
+  rpc :CheckVersion, Api.Check, Api.Version
 end
 
 defmodule Api.Dgraph.Stub do
